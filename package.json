@@ -1,0 +1,33 @@
+{
+  "name": "radjav-tools-lib",
+  "version": "1.0.2",
+  "description": "Tools for use with radjav-tools, RadJav HTML5, and the VSCode extension",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "tsc"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/FogChainInc/radjav-tools-lib.git"
+  },
+  "keywords": [
+    "javascript",
+    "create-project",
+    "deploy-ios",
+    "deploy-android",
+    "typescript"
+  ],
+  "author": "FogChain, Corp",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/FogChainInc/radjav-tools-lib/issues"
+  },
+  "homepage": "https://github.com/FogChainInc/radjav-tools-lib#readme",
+  "dependencies": {
+    "@types/node": "^11.13.4",
+    "archiver": "^3.0.0",
+    "recursive-copy": "^2.0.10"
+  }
+}

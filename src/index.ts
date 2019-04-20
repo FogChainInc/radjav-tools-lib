@@ -3,7 +3,9 @@ import * as path from "path";
 import * as OS from "os";
 import * as archiver from "archiver";
 import { execSync } from "child_process";
-var rcopy = require ("recursive-copy");
+import * as http from "http";
+import express = require ("express");
+import rcopy = require ("recursive-copy");
 
 /// The .NET to RadJav object types to convert.
 export interface ConvertibleType
@@ -17,9 +19,13 @@ export interface ConvertibleType
 /// Common RadJav developer tools.
 export class RadJavTools
 {
+    static app: express.Application;
+    static webServer: http.Server;
+
     /// Create a project.
     static createProject (appFolder: string, radJavBuildDir: string = "./RadJav",
-        dependenciesDir: string = "./dependencies", examplesDir: string = "./examples")
+        dependenciesDir: string = "./dependencies", examplesDir: string = "./examples", 
+        htmlPage: string = "./resources/RadJavApp.htm")
     {
         if (appFolder === "")
         {
@@ -33,7 +39,7 @@ export class RadJavTools
 
         fs.copyFileSync (`${examplesDir}/window/window.xrj`, appFolder + "/app.xrj");
         fs.copyFileSync (
-            path.normalize ("./resources/RadJavApp.htm"),
+            path.normalize (htmlPage),
             appFolder + "/RadJavApp.htm");
         rcopy (`${radJavBuildDir}/`, appFolder + "/RadJav/", { overwrite: true });
         rcopy (`${dependenciesDir}/`, appFolder + "/dependencies/", { overwrite: true });
@@ -64,18 +70,35 @@ export class RadJavTools
         zip.finalize ();
     }
 
+    /// Get the Android path.
+    static getAndroidSDKPath (path: string)
+    {
+        if (path === "")
+        {
+            if (process.platform == "win32")
+                path = `${OS.homedir ()}\\AppData\\Local\\Android\\Sdk`;
+
+            if (process.platform == "linux")
+                path = `${OS.homedir ()}/Android/Sdk`;
+
+            if (process.platform == "darwin")
+                path = `${OS.homedir ()}/Library/Android/sdk`;
+        }
+
+        return (path);
+    }
+
     /// Build an Android APK.
     static buildAPK (binPath: string, appFolder: string, customFileName: string = "app.xrj",
                         androidsdk: string = "", jarSignerPath: string = "", outputPath: string = "./app.apk")
     {
         let dirName: string = path.normalize (appFolder);
+        androidsdk = RadJavTools.getAndroidSDKPath (androidsdk);
 
-        if (androidsdk === "")
+        if (jarSignerPath === "")
         {
             if (process.platform == "win32")
             {
-                androidsdk = `${OS.homedir ()}\\AppData\\Local\\Android\\Sdk`;
-
                 if (fs.existsSync (`C:/Program Files/Android/Android Studio/jre/bin/jarsigner.exe`) == true)
                     jarSignerPath = `C:/Program Files/Android/Android Studio/jre/bin/jarsigner.exe`;
 
@@ -84,16 +107,10 @@ export class RadJavTools
             }
 
             if (process.platform == "linux")
-            {
-                androidsdk = `${OS.homedir ()}/Android\\Sdk`;
                 jarSignerPath = "jarsigner";
-            }
 
             if (process.platform == "darwin")
-            {
-                androidsdk = `${OS.homedir ()}/Library/Android\\sdk`;
                 jarSignerPath = "jarsigner";
-            }
         }
 
         if (fs.existsSync (`${dirName}/${customFileName}`) == false)
@@ -134,6 +151,57 @@ export class RadJavTools
         zip.directory (dirName, "assets/");
 
         zip.finalize ();
+    }
+
+    /// Install an APK to a device.
+    static installAPK (apkPath: string, androidsdk: string = "", deviceId: string = "")
+    {
+        androidsdk = RadJavTools.getAndroidSDKPath (androidsdk);
+
+        let output: Buffer = execSync (`${androidsdk}/platform-tools/adb install ${apkPath}`);
+
+        /// @fixme Get the result from the installation.
+    }
+
+    /// Install an IPA to a device.
+    static installIPA (ipaPath: string, imobiledevicePath = "ideviceinstaller", deviceId: string = "")
+    {
+        let output: Buffer = execSync (`${imobiledevicePath} -i ${ipaPath}`);
+
+        /// @fixme Get the result from the installation.
+    }
+
+    /// Start an HTTP server.
+    static startHTTP (location: string = "./", port: number = 3453, 
+        listenAddr: string = "127.0.0.1"): Promise<{ port: number, listenAddr: string }>
+    {
+        let promise: Promise<{ port: number, listenAddr: string }> = 
+            new Promise<{ port: number, listenAddr: string }> (function (resolve, reject)
+            {
+                RadJavTools.app = express ();
+
+                RadJavTools.app.use (express.static (location));
+
+                RadJavTools.app.get ("/", function (req, res)
+                    {
+                        let filePath: string = path.normalize (`${location}/RadJavApp.htm`);
+
+                        if (fs.existsSync (filePath) == false)
+                            filePath = path.normalize (`${location}/index.htm`);
+
+                        if (req.path != "/")
+                            filePath = req.path;
+
+                        res.sendFile (path.normalize (filePath));
+                    });
+
+                RadJavTools.webServer = RadJavTools.app.listen (port, listenAddr, null, function ()
+                    {
+                        resolve ({ port: port, listenAddr: listenAddr });
+                    });
+            });
+
+        return (promise);
     }
 
     /// Convert .NET designer UI to RadJav GUI JSON.
